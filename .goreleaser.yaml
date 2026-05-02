@@ -1,0 +1,61 @@
+version: 2
+
+project_name: yaku
+
+# Wails apps cannot be built with plain `go build` — the frontend assets must
+# be embedded and CGO must be configured against the compiled whisper.cpp libs.
+# All building is done via `task appimage` which calls `wails build` internally.
+before:
+  hooks:
+    - go mod tidy
+    - sh -c 'GPU=vulkan bash build/build-appimage.sh'
+
+# No standard Go builds — output is produced entirely by the before hooks above.
+builds:
+  - skip: true
+    binary: yaku
+    goos: [linux]
+    goarch: [amd64]
+
+# No archives — the AppImage is self-contained.
+archives: []
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: opdude
+    name: yaku
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }}"
+  extra_files:
+    - glob: "bin/yaku-*-linux-x86_64.AppImage"
+  footer: |
+    ## Installation
+
+    Download the `.AppImage` and make it executable:
+
+    ```bash
+    chmod +x yaku-*.AppImage
+    ./yaku-*.AppImage
+    ```
+
+    **Requirements (not bundled):**
+    - [Ollama](https://ollama.com) running locally with a translation model:
+      ```bash
+      ollama pull translategemma:4b
+      ```
+    - A whisper model file — download via `task download-model` or point Settings → Model Path at an existing `.bin` file.
+    - `libvulkan.so.1` (vulkan-loader) for GPU acceleration

@@ -1,0 +1,188 @@
+version: "3"
+
+# ── GPU mode ──────────────────────────────────────────────────────────────────
+# Set GPU=vulkan (default), GPU=cuda, or GPU=cpu to control whisper.cpp backend.
+#
+# Build deps (Debian / Ubuntu):
+#   sudo apt-get install cmake glslc libvulkan-dev libgomp-dev g++ pkg-config \
+#                        libgtk-3-dev libwebkit2gtk-4.1-dev
+#
+# Build deps (Fedora / RHEL):
+#   sudo dnf install cmake glslc vulkan-loader-devel libgomp-devel gcc-c++ pkgconf \
+#                    gtk3-devel webkit2gtk4.1-devel
+#
+# Runtime deps (provided by the AppImage except WebKit and GStreamer):
+#   libvulkan.so.1     (vulkan-loader)
+#   libgomp.so.1       (libgomp)
+#   libwebkit2gtk-4.1  (webkit2gtk4.1 / libwebkit2gtk-4.1-0)
+#   parec / pactl      (pipewire-pulse or pulseaudio-utils)
+# ─────────────────────────────────────────────────────────────────────────────
+
+vars:
+  GPU:              '{{.GPU | default "vulkan"}}'
+  OUTPUT_DIR:       bin
+  WHISPER_DIR:      third_party/whisper.cpp
+  INSTALL_DIR:      build/whisper/install
+  PKG_CONFIG_PATH:  "{{.ROOT_DIR}}/build/whisper/install/lib/pkgconfig"
+  BINARY:           "{{.OUTPUT_DIR}}/yaku-ui"
+  WAILS_DIR:        cmd/yaku
+
+  CMAKE_GPU_FLAGS:
+    sh: |
+      case "{{.GPU}}" in
+        vulkan) echo "-DGGML_VULKAN=ON" ;;
+        cuda)   echo "-DGGML_CUDA=ON" ;;
+        *)      echo "" ;;
+      esac
+
+  EXTRA_LIBS:
+    sh: |
+      case "{{.GPU}}" in
+        vulkan) echo "-lggml-vulkan -lvulkan" ;;
+        cuda)   echo "-lggml-cuda" ;;
+        *)      echo "" ;;
+      esac
+
+  VULKAN_LIB:
+    sh: |
+      case "{{.GPU}}" in
+        vulkan) echo "{{.INSTALL_DIR}}/lib/libggml-vulkan.a" ;;
+        *)      echo "" ;;
+      esac
+
+env:
+  PKG_CONFIG_PATH: "{{.PKG_CONFIG_PATH}}"
+  CGO_ENABLED:     "1"
+
+tasks:
+  # ── Main build ───────────────────────────────────────────────────────────────
+  default:
+    desc: "Build the Wails desktop app ({{.BINARY}}) — GPU={{.GPU}}"
+    deps: [whisper, wails-cli]
+    dir: "{{.WAILS_DIR}}"
+    cmds:
+      - mkdir -p ../../{{.OUTPUT_DIR}}
+      - wails build -tags webkit2_41 -platform linux/amd64
+      - mv build/bin/yaku-ui ../../{{.BINARY}}
+
+  dev:
+    desc: "Run in Wails dev mode (live-reload frontend)"
+    deps: [whisper, wails-cli]
+    dir: "{{.WAILS_DIR}}"
+    cmds:
+      - wails dev -tags webkit2_41
+
+  wails-cli:
+    desc: "Install the Wails CLI via go install (skipped if already present)"
+    status:
+      - wails version
+    cmds:
+      - go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+  # ── whisper.cpp ───────────────────────────────────────────────────────────────
+  submodule:
+    desc: "Initialise git submodules (skipped when already checked out)"
+    status:
+      - test -f "{{.WHISPER_DIR}}/CMakeLists.txt"
+    cmds:
+      - git submodule update --init --recursive
+
+  whisper:
+    desc: "Compile whisper.cpp (GPU={{.GPU}}). Re-runs when GPU mode changes."
+    deps: [submodule]
+    vars:
+      MARKER: "{{.INSTALL_DIR}}/.built-gpu-{{.GPU}}"
+    status:
+      - test -f "{{.INSTALL_DIR}}/lib/libwhisper.a"
+      - test -f "{{.PKG_CONFIG_PATH}}/libwhisper.pc"
+      - test -f "{{.MARKER}}"
+      - |
+        {{if .VULKAN_LIB}}test -f "{{.VULKAN_LIB}}"{{else}}true{{end}}
+    cmds:
+      - rm -f {{.INSTALL_DIR}}/.built-gpu-*
+      # Remove the cmake build dir so a stale CMakeCache.txt from a previous
+      # project path never prevents a clean configure.
+      - rm -rf {{.WHISPER_DIR}}/build
+      - cmake -S {{.WHISPER_DIR}} -B {{.WHISPER_DIR}}/build
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=OFF
+          -DWHISPER_BUILD_TESTS=OFF
+          -DWHISPER_BUILD_EXAMPLES=OFF
+          -DGGML_OPENMP=ON
+          {{.CMAKE_GPU_FLAGS}}
+      - cmake --build {{.WHISPER_DIR}}/build -j
+      - mkdir -p {{.INSTALL_DIR}}/lib/pkgconfig {{.INSTALL_DIR}}/include
+      - cp {{.WHISPER_DIR}}/include/whisper.h {{.INSTALL_DIR}}/include/
+      - cp {{.WHISPER_DIR}}/ggml/include/*.h {{.INSTALL_DIR}}/include/
+      - cp {{.WHISPER_DIR}}/build/src/libwhisper.a {{.INSTALL_DIR}}/lib/
+      - cp {{.WHISPER_DIR}}/build/ggml/src/libggml.a {{.INSTALL_DIR}}/lib/
+      - cp {{.WHISPER_DIR}}/build/ggml/src/libggml-base.a {{.INSTALL_DIR}}/lib/
+      - cp {{.WHISPER_DIR}}/build/ggml/src/libggml-cpu.a {{.INSTALL_DIR}}/lib/
+      - |
+        if [ "{{.GPU}}" = "vulkan" ]; then
+          cp {{.WHISPER_DIR}}/build/ggml/src/ggml-vulkan/libggml-vulkan.a {{.INSTALL_DIR}}/lib/
+        fi
+      - |
+        cat > {{.PKG_CONFIG_PATH}}/libwhisper.pc << EOF
+        prefix={{.ROOT_DIR}}/{{.INSTALL_DIR}}
+
+        Name: libwhisper
+        Description: Whisper speech recognition library
+        Version: 1.8.4
+        Cflags: -I\${prefix}/include
+        EOF
+      - |
+        EXTRA="{{.EXTRA_LIBS}}"
+        cat > {{.PKG_CONFIG_PATH}}/libwhisper-linux.pc << EOF
+        prefix={{.ROOT_DIR}}/{{.INSTALL_DIR}}
+
+        Name: libwhisper-linux
+        Description: Whisper speech recognition library (Linux, GPU={{.GPU}})
+        Version: 1.8.4
+        Cflags: -fopenmp
+        Libs: -L\${prefix}/lib -lwhisper -lggml -lggml-base -lggml-cpu $EXTRA -lgomp -lm -lstdc++
+        EOF
+      - touch {{.MARKER}}
+
+  # ── AppImage packaging ────────────────────────────────────────────────────────
+  appimage:
+    desc: "Build an AppImage (GPU={{.GPU}}). Output: bin/yaku-<version>-linux-x86_64.AppImage"
+    cmds:
+      - GPU={{.GPU}} bash build/build-appimage.sh
+
+  # ── Tests ─────────────────────────────────────────────────────────────────────
+  test:
+    desc: Run unit tests
+    deps: [whisper]
+    cmds:
+      - go test ./internal/... -timeout 120s {{.CLI_ARGS}}
+
+  test-verbose:
+    desc: Run unit tests with verbose output
+    deps: [whisper]
+    cmds:
+      - go test ./internal/... -v -timeout 120s {{.CLI_ARGS}}
+
+  test-integration:
+    desc: "Transcription integration test (set WHISPER_MODEL_REAL=<path>)"
+    deps: [whisper]
+    cmds:
+      - go test ./internal/transcribe/ -v -run TestTranscribe_GermanAudio -timeout 120s
+
+  # ── Maintenance ───────────────────────────────────────────────────────────────
+  tidy:
+    desc: Run go mod tidy
+    deps: [whisper]
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: Remove compiled binary
+    cmds:
+      - rm -f {{.BINARY}}
+
+  clean-all:
+    desc: Remove binary and all compiled whisper libs (forces full rebuild next run)
+    cmds:
+      - rm -f {{.BINARY}}
+      - rm -rf {{.WHISPER_DIR}}/build {{.INSTALL_DIR}}

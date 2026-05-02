@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yaku</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- ── Main overlay ──────────────────────────────────────────────────────── -->
+  <div id="main-view">
+
+    <header id="header">
+      <span id="title">Yaku</span>
+      <div id="controls">
+        <!-- Toggle source-language panel; label explains it's the input -->
+        <button id="btn-toggle-source" class="btn-icon" title="Show/hide source text">
+          SRC
+        </button>
+        <button id="btn-settings" class="btn-icon" title="Settings">⚙</button>
+        <button id="btn-close" class="btn-icon" title="Close">✕</button>
+        <button id="btn-start" class="btn-primary">▶ Start</button>
+      </div>
+    </header>
+
+    <div id="source-panel" class="text-panel hidden">
+      <div class="text-clip">
+        <div id="source-text" class="text-content"></div>
+      </div>
+    </div>
+    <div id="panel-divider" class="hidden"></div>
+
+    <div id="translation-panel" class="text-panel">
+      <div class="text-clip">
+        <div id="translation-text" class="text-content"></div>
+      </div>
+    </div>
+
+    <footer id="statusbar">
+      <span id="status-dot" class="status-dot"></span>
+      <span id="status-text">Ready</span>
+      <!-- Language pair — inline selects styled as plain text -->
+      <div id="lang-pair">
+        <select id="sb-src-lang" class="lang-select" title="Source language" autocomplete="off">
+          <option value="de">German (de)</option>
+          <option value="fr">French (fr)</option>
+          <option value="es">Spanish (es)</option>
+          <option value="it">Italian (it)</option>
+          <option value="pt">Portuguese (pt)</option>
+          <option value="nl">Dutch (nl)</option>
+          <option value="pl">Polish (pl)</option>
+          <option value="ru">Russian (ru)</option>
+          <option value="ja">Japanese (ja)</option>
+          <option value="zh">Chinese (zh)</option>
+          <option value="ko">Korean (ko)</option>
+          <option value="ar">Arabic (ar)</option>
+          <option value="tr">Turkish (tr)</option>
+          <option value="sv">Swedish (sv)</option>
+          <option value="da">Danish (da)</option>
+          <option value="fi">Finnish (fi)</option>
+          <option value="cs">Czech (cs)</option>
+          <option value="auto">Auto-detect</option>
+        </select>
+        <span class="lang-arrow">→</span>
+        <select id="sb-tgt-lang" class="lang-select" title="Target language" autocomplete="off">
+          <option value="en">English (en)</option>
+          <option value="de">German (de)</option>
+          <option value="fr">French (fr)</option>
+          <option value="es">Spanish (es)</option>
+          <option value="it">Italian (it)</option>
+          <option value="pt">Portuguese (pt)</option>
+          <option value="nl">Dutch (nl)</option>
+          <option value="pl">Polish (pl)</option>
+          <option value="ru">Russian (ru)</option>
+          <option value="ja">Japanese (ja)</option>
+          <option value="zh">Chinese (zh)</option>
+          <option value="ko">Korean (ko)</option>
+          <option value="ar">Arabic (ar)</option>
+          <option value="tr">Turkish (tr)</option>
+          <option value="sv">Swedish (sv)</option>
+          <option value="da">Danish (da)</option>
+          <option value="fi">Finnish (fi)</option>
+          <option value="cs">Czech (cs)</option>
+        </select>
+      </div>
+      <span id="error-text" class="error hidden"></span>
+    </footer>
+  </div>
+
+  <!-- ── Model setup view (shown on first run / missing model) ────────────── -->
+  <div id="model-setup-view" class="hidden">
+
+    <header id="model-setup-header">
+      <h2>Choose a Whisper Model</h2>
+    </header>
+
+    <div id="model-setup-body">
+      <p class="setup-desc">A local model is required for transcription. Choose one to download, or point to an existing file.</p>
+
+      <div id="model-list">
+        <!-- populated by JS from GetAvailableModels() -->
+      </div>
+
+      <div id="model-progress-area" class="hidden">
+        <div id="model-progress-name" class="progress-label"></div>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <div id="model-progress-text" class="progress-pct">0%</div>
+        <button id="btn-cancel-download" class="btn-icon">Cancel</button>
+      </div>
+
+      <div class="setup-existing">
+        <label class="setup-existing-label">Use an existing model file:</label>
+        <div class="setup-existing-row">
+          <input id="existing-model-path" type="text" placeholder="/path/to/ggml-model.bin" />
+          <button id="btn-use-existing" class="btn-primary">Use</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Settings view (shown by resizing the window) ─────────────────────── -->
+  <div id="settings-view" class="hidden">
+
+    <header id="settings-header">
+      <h2>Settings</h2>
+      <button id="btn-close-settings" class="btn-icon">✕</button>
+    </header>
+
+    <div id="settings-body">
+
+      <div class="field-row">
+        <div class="field">
+          <label for="cfg-language">Source language</label>
+          <select id="cfg-language">
+            <option value="de">German (de)</option>
+            <option value="fr">French (fr)</option>
+            <option value="es">Spanish (es)</option>
+            <option value="it">Italian (it)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="nl">Dutch (nl)</option>
+            <option value="pl">Polish (pl)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="zh">Chinese (zh)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="ar">Arabic (ar)</option>
+            <option value="tr">Turkish (tr)</option>
+            <option value="sv">Swedish (sv)</option>
+            <option value="da">Danish (da)</option>
+            <option value="fi">Finnish (fi)</option>
+            <option value="cs">Czech (cs)</option>
+            <option value="auto">Auto-detect</option>
+          </select>
+        </div>
+        <div class="field-arrow">→</div>
+        <div class="field">
+          <label for="cfg-target">Target language</label>
+          <select id="cfg-target">
+            <option value="en">English (en)</option>
+            <option value="de">German (de)</option>
+            <option value="fr">French (fr)</option>
+            <option value="es">Spanish (es)</option>
+            <option value="it">Italian (it)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="nl">Dutch (nl)</option>
+            <option value="pl">Polish (pl)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="zh">Chinese (zh)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="ar">Arabic (ar)</option>
+            <option value="tr">Turkish (tr)</option>
+            <option value="sv">Swedish (sv)</option>
+            <option value="da">Danish (da)</option>
+            <option value="fi">Finnish (fi)</option>
+            <option value="cs">Czech (cs)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cfg-model-path">Whisper model</label>
+        <div class="setup-existing-row">
+          <input id="cfg-model-path" type="text" readonly />
+          <button id="btn-manage-models" class="btn-primary" type="button">Manage Models</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cfg-ollama-model-select">Ollama model</label>
+        <select id="cfg-ollama-model-select">
+          <option value="translategemma:4b">translategemma:4b (recommended)</option>
+          <option value="translategemma:12b">translategemma:12b</option>
+          <option value="translategemma:27b">translategemma:27b</option>
+          <option value="llama3.2">llama3.2</option>
+          <option value="llama3.1:8b">llama3.1:8b</option>
+          <option value="qwen2.5:7b">qwen2.5:7b</option>
+          <option value="gemma2:9b">gemma2:9b</option>
+          <option value="mistral">mistral</option>
+          <option value="phi4-mini">phi4-mini</option>
+          <option value="__custom__">Custom…</option>
+        </select>
+        <input id="cfg-ollama-model" type="text" placeholder="my-model:latest"
+               class="hidden" aria-label="Custom Ollama model name" />
+      </div>
+
+      <div class="field">
+        <label for="cfg-ollama-url">Ollama URL</label>
+        <input id="cfg-ollama-url" type="text"
+               placeholder="http://localhost:11434/api/generate" />
+      </div>
+
+    </div>
+
+    <div id="settings-footer">
+      <button id="btn-save-settings" class="btn-primary">Save</button>
+    </div>
+  </div>
+
+  <script src="/src/main.js"></script>
+</body>
+</html>

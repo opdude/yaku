@@ -1,0 +1,473 @@
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --overlay-bg:   rgb(8, 8, 14);
+  --chrome-bg:    rgb(12, 12, 18);
+  --accent:       #5a9cf8;
+  --text-active:  #ffffff;
+  --text-hist:    rgba(255, 255, 255, 0.68);
+  --text-src:     rgba(140, 210, 240, 0.80);
+  --text-dim:     rgba(255, 255, 255, 0.30);
+  --sep:          rgba(255, 255, 255, 0.06);
+  --status-ok:    #4caf50;
+  --status-busy:  #ff9800;
+  --status-err:   #f44336;
+  --font:         "DejaVu Sans", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic UI", "Meiryo", "Hiragino Sans", "Arial Unicode MS", sans-serif;
+  --font-mono:    'Cascadia Code', 'Fira Mono', monospace;
+  --radius:       8px;
+}
+
+html { height: 100%; background: transparent; }
+body {
+  height: 100%;
+  background: var(--overlay-bg);
+  color: var(--text-active);
+  font-family: var(--font);
+  overflow: hidden;
+  border-radius: var(--radius);  /* round the entire window */
+}
+
+/* ── App shell ─────────────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ── Header — drag handle, no OS title bar ─────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+  /* Wails drag: any element with --wails-draggable: drag is a move handle */
+  --wails-draggable: drag;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+#controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  /* Reset so buttons/inputs inside the drag header are still clickable */
+  --wails-draggable: no-drag;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+/* Interactive elements must never be treated as drag handles */
+button, input, a, select { --wails-draggable: no-drag; }
+
+button { cursor: pointer; border: none; font-family: var(--font); transition: opacity 0.12s; }
+button:hover { opacity: 0.72; }
+
+.btn-icon {
+  background: transparent;
+  color: var(--text-hist);
+  font-size: 14px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.btn-icon:hover { background: rgba(255,255,255,0.08); color: var(--text-active); }
+.btn-icon.active { color: var(--accent); }
+
+/* Symbol buttons can render tiny on some WebKitGTK font fallback paths.
+   Force fixed geometry and a symbols-capable font stack for consistent sizing. */
+#btn-settings,
+#btn-close {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "DejaVu Sans", sans-serif;
+}
+
+.btn-primary {
+  background: rgba(90,156,248,0.85);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 4px;
+}
+.btn-primary.running { background: rgba(229,115,115,0.85); }
+
+/* ── Text panels ───────────────────────────────────────────────────────────── */
+.text-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;    /* anchor for absolute .text-content */
+  background: transparent;
+}
+.text-panel.hidden { display: none; }
+
+#panel-divider {
+  height: 1px;
+  background: var(--sep);
+  flex-shrink: 0;
+}
+#panel-divider.hidden { display: none; }
+
+/*
+ * contain:paint is a hard paint-containment boundary — nothing painted inside
+ * can escape, regardless of backdrop-filter compositing layers or the WebKit
+ * flex overflow:hidden bug.
+ */
+.text-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: rgb(8, 8, 14);
+}
+
+.text-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 8px 18px 6px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Text lines ────────────────────────────────────────────────────────────── */
+.line {
+  line-height: 1.55;
+  font-size: 16px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  font-family: "Noto Sans CJK JP", "Source Han Sans JP", sans-serif;
+  padding: 1px 0;
+}
+
+.line.history { color: var(--text-active); }
+
+/* Current active line */
+.line.current { color: var(--text-active); font-weight: 500; }
+
+/* Source panel */
+#source-panel .line              { font-size: 13px; color: var(--text-src); }
+#source-panel .line.current      { color: rgba(160,220,250,0.95); }
+
+/* Cursor on actively-streaming line */
+.cursor::after {
+  content: '▌';
+  animation: blink 1s step-start infinite;
+  color: var(--accent);
+  margin-left: 1px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── Status bar ────────────────────────────────────────────────────────────── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  background: var(--chrome-bg);
+  border-top: 1px solid var(--sep);
+  flex-shrink: 0;
+  font-size: 11px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+.status-dot.listening    { background: var(--status-ok); }
+.status-dot.transcribing,
+.status-dot.translating  { background: var(--status-busy); animation: pulse 1s ease-in-out infinite; }
+.status-dot.error        { background: var(--status-err); }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+#status-text { color: var(--text-dim); flex: 1; }
+.error { color: var(--status-err); }
+
+/* Inline language pair in status bar */
+#lang-pair {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.lang-arrow { color: var(--text-dim); font-size: 10px; }
+
+/* Status-bar <select>: looks like plain text, reveals on hover */
+.lang-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: "Noto Sans CJK JP", "Source Han Sans JP", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 0 12px 0 0;
+  cursor: pointer;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23666' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lang-select:hover,
+.lang-select:focus {
+  color: var(--text-active);
+  border-bottom-color: rgba(255,255,255,0.25);
+}
+.lang-select option {
+  background: #1a1a22;
+  color: var(--text-active);
+  font-weight: 400;
+}
+
+/* ── Settings view (replaces the whole window when open) ─────────────────────── */
+#main-view    { display: flex; flex-direction: column; height: 100vh; }
+#main-view.hidden    { display: none; }
+
+#settings-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--overlay-bg);
+}
+#settings-view.hidden { display: none; }
+
+/* ── Model setup view ──────────────────────────────────────────────────────── */
+#model-setup-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--overlay-bg);
+}
+#model-setup-view.hidden { display: none; }
+
+#model-setup-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+  --wails-draggable: drag;
+  user-select: none;
+}
+#model-setup-header h2 { font-size: 14px; font-weight: 600; color: var(--text-active); }
+
+#model-setup-body {
+  flex: 1;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.setup-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+#model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--sep);
+  border-radius: var(--radius);
+  transition: border-color 0.15s;
+}
+.model-option:hover { border-color: rgba(255,255,255,0.15); }
+.active-model {
+  border-color: rgba(90,156,248,0.6);
+  background: rgba(90,156,248,0.08);
+}
+
+.model-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.model-name { font-size: 13px; font-weight: 600; color: var(--text-active); }
+.model-desc { font-size: 11px; color: var(--text-dim); }
+
+.model-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Download progress */
+#model-progress-area {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
+  border: 1px solid var(--sep);
+  border-radius: var(--radius);
+}
+#model-progress-area.hidden { display: none; }
+
+.progress-label { font-size: 12px; color: var(--text-active); }
+
+.progress-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.15s linear;
+}
+
+.progress-pct { font-size: 11px; color: var(--text-dim); }
+
+/* Existing model path input */
+.setup-existing { margin-top: 4px; display: flex; flex-direction: column; gap: 5px; }
+.setup-existing-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.setup-existing-row { display: flex; gap: 6px; }
+.setup-existing-row input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: var(--text-active);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.15s;
+  --wails-draggable: no-drag;
+}
+.setup-existing-row input:focus { border-color: var(--accent); }
+
+#settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+  --wails-draggable: drag;
+  user-select: none;
+}
+#settings-header h2 { font-size: 14px; font-weight: 600; color: var(--text-active); }
+#settings-header .btn-icon { --wails-draggable: no-drag; }
+
+#settings-body {
+  flex: 1;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+#settings-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--sep);
+  background: var(--chrome-bg);
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Side-by-side language fields */
+.field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.field-row .field { flex: 1; }
+.field-arrow {
+  color: var(--text-dim);
+  font-size: 16px;
+  padding-bottom: 9px;
+  flex-shrink: 0;
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Shared base for inputs and selects */
+.field input,
+.field select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: var(--text-active);
+  font-family: "Noto Sans CJK JP", "Source Han Sans JP", sans-serif;
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+
+/* Native <select> arrow tint */
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+.field select option {
+  background: #1a1a22;
+  color: var(--text-active);
+}
+
+.field input {
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field input:focus { border-color: var(--accent); }

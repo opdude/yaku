@@ -1,0 +1,16 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "yaku",
+  "outputfilename": "yaku-ui",
+  "frontend": {
+    "dir": "frontend",
+    "install": "",
+    "build": "",
+    "dev": "",
+    "devUrl": ""
+  },
+  "author": {
+    "name": "opdude",
+    "email": "mail@opdude.co.uk"
+  }
+}

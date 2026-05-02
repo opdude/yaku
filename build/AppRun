@@ -1,0 +1,47 @@
+#!/bin/bash
+# AppImage entry point for yaku
+
+APPDIR="$(dirname "$(readlink -f "$0")")"
+LOGDIR="${XDG_RUNTIME_DIR:-/tmp}/yaku"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/launch.log"
+
+exec > >(tee -a "$LOG") 2>&1
+echo "--- yaku launch $(date) ---"
+echo "APPDIR=$APPDIR"
+
+# Bundled shared libraries take priority
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+# Force X11 — Wails frameless windows require X11/XWayland.
+# File managers on Wayland sessions often don't export DISPLAY, so fall back.
+export GDK_BACKEND=x11
+export DISPLAY="${DISPLAY:-:0}"
+export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+echo "DISPLAY=$DISPLAY  WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<unset>}"
+
+# WebKit is NOT bundled — locate the system helper processes so WebKit can
+# spawn WebKitWebProcess / WebKitNetworkProcess correctly regardless of distro.
+for _wk in \
+    /usr/libexec/webkit2gtk-4.1 \
+    /usr/lib64/webkit2gtk-4.1 \
+    /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1 \
+    /usr/lib/webkit2gtk-4.1; do
+  if [ -x "$_wk/WebKitWebProcess" ]; then
+    export WEBKIT2_EXEC_PATH="$_wk"
+    echo "WebKit helpers: $_wk"
+    break
+  fi
+done
+
+# GTK / GDK
+export GTK_PATH="$APPDIR/usr/lib/gtk-3.0"
+export GDK_PIXBUF_MODULE_FILE="$APPDIR/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export GSETTINGS_SCHEMA_DIR="$APPDIR/usr/share/glib-2.0/schemas:${GSETTINGS_SCHEMA_DIR:-}"
+
+# parec / pactl for audio capture
+export PATH="$APPDIR/usr/bin:$PATH"
+
+echo "Launching yaku..."
+exec "$APPDIR/usr/bin/yaku" "$@"

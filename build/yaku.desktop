@@ -1,0 +1,11 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Name=Yaku
+GenericName=Audio Translator
+Comment=Real-time audio transcription and translation overlay
+Exec=yaku
+Icon=yaku
+Type=Application
+Categories=Utility;AudioVideo;
+Keywords=translate;transcribe;whisper;audio;overlay;
+StartupNotify=true
