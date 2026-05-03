@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	goruntime "runtime"
 	"strings"
 	"sync"
 
@@ -56,12 +57,6 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(_ context.Context) {
 	a.StopPipeline()
 	a.CancelModelDownload()
-	a.mu.Lock()
-	if a.transcriber != nil {
-		a.transcriber.Close()
-		a.transcriber = nil
-	}
-	a.mu.Unlock()
 }
 
 // ── Frontend-callable methods ─────────────────────────────────────────────────
@@ -79,11 +74,6 @@ func (a *App) SaveConfig(cfg appconfig.Config) error {
 		return err
 	}
 	a.mu.Lock()
-	// Invalidate the cached transcriber if the model path changed.
-	if cfg.ModelPath != a.cfg.ModelPath && a.transcriber != nil {
-		a.transcriber.Close()
-		a.transcriber = nil
-	}
 	a.cfg = cfg
 	a.mu.Unlock()
 	return nil
@@ -198,14 +188,6 @@ func (a *App) StartPipeline() error {
 
 	cfg := a.cfg
 
-	if a.transcriber == nil {
-		t, err := transcribe.New(cfg.ModelPath)
-		if err != nil {
-			return err
-		}
-		a.transcriber = t
-	}
-
 	device := cfg.AudioDevice
 	if device == "" {
 		var err error
@@ -257,12 +239,47 @@ func (a *App) IsRunning() bool {
 // ── Pipeline goroutine ────────────────────────────────────────────────────────
 
 func (a *App) runPipeline(ctx context.Context, device string, cfg appconfig.Config) {
+	// Lock this goroutine to one OS thread for the duration of the pipeline.
+	// ggml-vulkan (and other GPU backends) create VkCommandPool and other
+	// thread-affine Vulkan objects during init; all subsequent compute calls
+	// must occur on the same OS thread to avoid access violations.
+	goruntime.LockOSThread()
+	defer goruntime.UnlockOSThread()
+
 	defer func() {
 		a.pipelineWg.Done()
 		a.mu.Lock()
 		a.running = false
 		a.mu.Unlock()
 	}()
+
+	// Load (or reuse) the whisper model on this locked OS thread so the GPU
+	// context is created and used on the same thread throughout the pipeline.
+	a.mu.Lock()
+	existing := a.transcriber
+	existingPath := ""
+	if existing != nil {
+		existingPath = existing.ModelPath()
+	}
+	a.mu.Unlock()
+
+	if existing == nil || existingPath != cfg.ModelPath {
+		if existing != nil {
+			existing.Close()
+		}
+		t, err := transcribe.New(cfg.ModelPath)
+		if err != nil {
+			a.emitError("load model: " + err.Error())
+			return
+		}
+		a.mu.Lock()
+		a.transcriber = t
+		a.mu.Unlock()
+	}
+
+	a.mu.Lock()
+	t := a.transcriber
+	a.mu.Unlock()
 
 	streamCh, err := audio.NewCapturer().Stream(ctx, device)
 	if err != nil {
@@ -302,13 +319,6 @@ func (a *App) runPipeline(ctx context.Context, device string, cfg appconfig.Conf
 			audioBuf = audioBuf[len(audioBuf)-audio.IncrSamples:]
 		} else {
 			audioBuf = audioBuf[:0]
-		}
-
-		a.mu.Lock()
-		t := a.transcriber
-		a.mu.Unlock()
-		if t == nil {
-			return
 		}
 
 		a.emitStatus("transcribing")
