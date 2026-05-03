@@ -32,7 +32,7 @@ vars:
   WHISPER_DIR:      third_party/whisper.cpp
   INSTALL_DIR:      build/whisper/install
   PKG_CONFIG_PATH:  "{{.ROOT_DIR}}/build/whisper/install/lib/pkgconfig"
-  BINARY:           "{{.OUTPUT_DIR}}/yaku-ui"
+  BINARY:           "{{.OUTPUT_DIR}}/yaku"
   WAILS_DIR:        cmd/yaku
   MINGW:            '{{.MINGW | default "C:/msys64/mingw64"}}'
 
@@ -195,7 +195,7 @@ tasks:
 
   # ── Windows app build ─────────────────────────────────────────────────────
   build-windows:
-    desc: "Build the Wails Windows exe (bin/yaku-ui.exe)"
+    desc: "Build the Wails Windows exe (bin/yaku.exe)"
     platforms: [windows]
     deps: [whisper-windows, wails-cli]
     dir: "{{.WAILS_DIR}}"
@@ -206,7 +206,7 @@ tasks:
     cmds:
       - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '../../{{.OUTPUT_DIR}}' | Out-Null"
       - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File ../../build/wails-windows.ps1 -Cmd "build -platform windows/amd64" -Mingw "{{.MINGW}}"
-      - cmd: powershell -NoProfile -Command "Copy-Item 'build/bin/yaku-ui.exe' '../../{{.OUTPUT_DIR}}/yaku-ui.exe'"
+      - cmd: powershell -NoProfile -Command "Copy-Item 'build/bin/yaku.exe' '../../{{.OUTPUT_DIR}}/yaku.exe'"
 
   # ── AppImage packaging ────────────────────────────────────────────────────
   appimage:
@@ -266,7 +266,7 @@ tasks:
     desc: Remove compiled Windows binary and whisper libs
     platforms: [windows]
     cmds:
-      - cmd: powershell -NoProfile -Command "Remove-Item -Force '{{.OUTPUT_DIR}}/yaku-ui.exe' -ErrorAction SilentlyContinue"
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force '{{.OUTPUT_DIR}}/yaku.exe' -ErrorAction SilentlyContinue"
       - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.WHISPER_DIR}}/build','{{.INSTALL_DIR}}' -ErrorAction SilentlyContinue"
 
   clean-all:

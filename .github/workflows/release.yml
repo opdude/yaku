@@ -90,6 +90,6 @@ jobs:
           CXX: C:\msys64\mingw64\bin\g++.exe
 
       - name: Upload Windows exe to GitHub Release
-        run: gh release upload ${{ github.ref_name }} bin/yaku-ui.exe --clobber
+        run: gh release upload ${{ github.ref_name }} bin/yaku.exe --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
