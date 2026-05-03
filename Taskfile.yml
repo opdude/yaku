@@ -62,6 +62,14 @@ tasks:
     cmds:
       - wails dev -tags webkit2_41
 
+  dev-windows:
+    desc: "Run in Wails dev mode on Windows (live-reload frontend)"
+    platforms: [windows]
+    deps: [whisper-windows, wails-cli]
+    dir: "{{.WAILS_DIR}}"
+    cmds:
+      - wails dev
+
   wails-cli:
     desc: "Install the Wails CLI via go install (skipped if already present)"
     status:
@@ -145,10 +153,14 @@ tasks:
     vars:
       MINGW: '{{.MINGW | default "C:/msys64/mingw64"}}'
       MARKER: "{{.INSTALL_DIR}}/.built-windows-cpu"
+    status:
+      - powershell -NoProfile -Command "if (Test-Path '{{.INSTALL_DIR}}/lib/libwhisper.a') { exit 0 } else { exit 1 }"
+      - powershell -NoProfile -Command "if (Test-Path '{{.INSTALL_DIR}}/lib/pkgconfig/libwhisper.pc') { exit 0 } else { exit 1 }"
+      - powershell -NoProfile -Command "if (Test-Path '{{.MARKER}}') { exit 0 } else { exit 1 }"
     cmds:
       - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.WHISPER_DIR}}/build' -ErrorAction SilentlyContinue"
       - cmake -S {{.WHISPER_DIR}} -B {{.WHISPER_DIR}}/build
-          -G "MinGW Makefiles"
+          -G Ninja
           "-DCMAKE_C_COMPILER={{.MINGW}}/bin/gcc.exe"
           "-DCMAKE_CXX_COMPILER={{.MINGW}}/bin/g++.exe"
           -DCMAKE_BUILD_TYPE=Release
@@ -160,9 +172,9 @@ tasks:
       - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '{{.INSTALL_DIR}}/lib/pkgconfig','{{.INSTALL_DIR}}/include' | Out-Null"
       - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/include/whisper.h' '{{.INSTALL_DIR}}/include/'"
       - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/ggml/include/*.h' '{{.INSTALL_DIR}}/include/'"
-      - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/build/src/libwhisper.a','{{.WHISPER_DIR}}/build/ggml/src/libggml.a','{{.WHISPER_DIR}}/build/ggml/src/libggml-base.a','{{.WHISPER_DIR}}/build/ggml/src/libggml-cpu.a' '{{.INSTALL_DIR}}/lib/'"
+      - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/build/src/libwhisper.a','{{.WHISPER_DIR}}/build/ggml/src/ggml.a','{{.WHISPER_DIR}}/build/ggml/src/ggml-base.a','{{.WHISPER_DIR}}/build/ggml/src/ggml-cpu.a' '{{.INSTALL_DIR}}/lib/'"
       - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File build/write-pkgconfig-windows.ps1 -Prefix "{{.ROOT_DIR}}/{{.INSTALL_DIR}}" -PkgConfigDir "{{.ROOT_DIR}}/{{.INSTALL_DIR}}/lib/pkgconfig"
-      - cmd: powershell -NoProfile -Command "New-Item -ItemType File -Force '{{.INSTALL_DIR}}/{{.MARKER}}' | Out-Null"
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType File -Force '{{.MARKER}}' | Out-Null"
 
   # ── Windows app build ─────────────────────────────────────────────────────
   build-windows:
