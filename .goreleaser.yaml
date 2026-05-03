@@ -57,5 +57,5 @@ release:
       ```bash
       ollama pull translategemma:4b
       ```
-    - A whisper model file — download via `task download-model` or point Settings → Model Path at an existing `.bin` file.
+    - A whisper model file — point Settings → Model Path at an existing `.bin` file.
     - `libvulkan.so.1` (vulkan-loader) for GPU acceleration
