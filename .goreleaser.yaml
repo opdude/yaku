@@ -4,7 +4,9 @@ project_name: yaku
 
 # Wails apps cannot be built with plain `go build` — the frontend assets must
 # be embedded and CGO must be configured against the compiled whisper.cpp libs.
-# All building is done via `task appimage` which calls `wails build` internally.
+# The Linux AppImage is produced by task appimage (called in the before hook).
+# The Windows exe is built separately by the release-windows CI job and uploaded
+# to the GitHub Release via `gh release upload`.
 before:
   hooks:
     - go mod tidy
@@ -17,7 +19,7 @@ builds:
     goos: [linux]
     goarch: [amd64]
 
-# No archives — the AppImage is self-contained.
+# No archives — the AppImage and Windows exe are self-contained.
 archives: []
 
 checksum:
@@ -42,20 +44,28 @@ release:
   name_template: "{{ .Tag }}"
   extra_files:
     - glob: "bin/yaku-*-linux-x86_64.AppImage"
+    - glob: "bin/yaku-ui.exe"
   footer: |
     ## Installation
 
+    ### Linux
     Download the `.AppImage` and make it executable:
-
     ```bash
     chmod +x yaku-*.AppImage
     ./yaku-*.AppImage
     ```
 
-    **Requirements (not bundled):**
+    ### Windows
+    Download `yaku-ui.exe` and run it directly.
+    WebView2 Runtime is required — it is pre-installed on Windows 11 and
+    available from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+    **Requirements (both platforms):**
     - [Ollama](https://ollama.com) running locally with a translation model:
       ```bash
       ollama pull translategemma:4b
       ```
     - A whisper model file — point Settings → Model Path at an existing `.bin` file.
+
+    **Linux only:**
     - `libvulkan.so.1` (vulkan-loader) for GPU acceleration

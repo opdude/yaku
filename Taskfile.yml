@@ -2,6 +2,7 @@ version: "3"
 
 # ── GPU mode ──────────────────────────────────────────────────────────────────
 # Set GPU=vulkan (default), GPU=cuda, or GPU=cpu to control whisper.cpp backend.
+# Windows builds are always CPU-only for now (GPU support can be added later).
 #
 # Build deps (Debian / Ubuntu):
 #   sudo apt-get install cmake glslc libvulkan-dev libgomp-dev g++ pkg-config \
@@ -10,6 +11,9 @@ version: "3"
 # Build deps (Fedora / RHEL):
 #   sudo dnf install cmake glslc vulkan-loader-devel libgomp-devel gcc-c++ pkgconf \
 #                    gtk3-devel webkit2gtk4.1-devel
+#
+# Build deps (Windows) — requires MSYS2 with MinGW-w64:
+#   pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
 #
 # Runtime deps (provided by the AppImage except WebKit and GStreamer):
 #   libvulkan.so.1     (vulkan-loader)
@@ -27,37 +31,22 @@ vars:
   BINARY:           "{{.OUTPUT_DIR}}/yaku-ui"
   WAILS_DIR:        cmd/yaku
 
-  CMAKE_GPU_FLAGS:
-    sh: |
-      case "{{.GPU}}" in
-        vulkan) echo "-DGGML_VULKAN=ON" ;;
-        cuda)   echo "-DGGML_CUDA=ON" ;;
-        *)      echo "" ;;
-      esac
+  # Pure Go-template expressions — no shell required on any platform.
+  CMAKE_GPU_FLAGS: "{{if eq .GPU \"vulkan\"}}-DGGML_VULKAN=ON{{else if eq .GPU \"cuda\"}}-DGGML_CUDA=ON{{end}}"
 
-  EXTRA_LIBS:
-    sh: |
-      case "{{.GPU}}" in
-        vulkan) echo "-lggml-vulkan -lvulkan" ;;
-        cuda)   echo "-lggml-cuda" ;;
-        *)      echo "" ;;
-      esac
+  EXTRA_LIBS: "{{if eq .GPU \"vulkan\"}}-lggml-vulkan -lvulkan{{else if eq .GPU \"cuda\"}}-lggml-cuda{{end}}"
 
-  VULKAN_LIB:
-    sh: |
-      case "{{.GPU}}" in
-        vulkan) echo "{{.INSTALL_DIR}}/lib/libggml-vulkan.a" ;;
-        *)      echo "" ;;
-      esac
+  VULKAN_LIB: "{{if eq .GPU \"vulkan\"}}{{.INSTALL_DIR}}/lib/libggml-vulkan.a{{end}}"
 
 env:
   PKG_CONFIG_PATH: "{{.PKG_CONFIG_PATH}}"
   CGO_ENABLED:     "1"
 
 tasks:
-  # ── Main build ───────────────────────────────────────────────────────────────
+  # ── Main build (Linux / macOS) ────────────────────────────────────────────
   default:
     desc: "Build the Wails desktop app ({{.BINARY}}) — GPU={{.GPU}}"
+    platforms: [linux, darwin]
     deps: [whisper, wails-cli]
     dir: "{{.WAILS_DIR}}"
     cmds:
@@ -67,6 +56,7 @@ tasks:
 
   dev:
     desc: "Run in Wails dev mode (live-reload frontend)"
+    platforms: [linux, darwin]
     deps: [whisper, wails-cli]
     dir: "{{.WAILS_DIR}}"
     cmds:
@@ -79,7 +69,7 @@ tasks:
     cmds:
       - go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-  # ── whisper.cpp ───────────────────────────────────────────────────────────────
+  # ── whisper.cpp (Linux / macOS) ───────────────────────────────────────────
   submodule:
     desc: "Initialise git submodules (skipped when already checked out)"
     status:
@@ -89,6 +79,7 @@ tasks:
 
   whisper:
     desc: "Compile whisper.cpp (GPU={{.GPU}}). Re-runs when GPU mode changes."
+    platforms: [linux, darwin]
     deps: [submodule]
     vars:
       MARKER: "{{.INSTALL_DIR}}/.built-gpu-{{.GPU}}"
@@ -144,45 +135,106 @@ tasks:
         EOF
       - touch {{.MARKER}}
 
-  # ── AppImage packaging ────────────────────────────────────────────────────────
+  # ── whisper.cpp (Windows — MinGW-w64, CPU only) ───────────────────────────
+  # Requires MSYS2 MinGW-w64 toolchain.  On GitHub Actions this is pre-installed
+  # at C:\msys64\mingw64.  Override MINGW to use a different installation.
+  whisper-windows:
+    desc: "Compile whisper.cpp for Windows (CPU+OpenMP) using MinGW-w64"
+    platforms: [windows]
+    deps: [submodule]
+    vars:
+      MINGW: '{{.MINGW | default "C:/msys64/mingw64"}}'
+      MARKER: "{{.INSTALL_DIR}}/.built-windows-cpu"
+    cmds:
+      - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.WHISPER_DIR}}/build' -ErrorAction SilentlyContinue"
+      - cmake -S {{.WHISPER_DIR}} -B {{.WHISPER_DIR}}/build
+          -G "MinGW Makefiles"
+          "-DCMAKE_C_COMPILER={{.MINGW}}/bin/gcc.exe"
+          "-DCMAKE_CXX_COMPILER={{.MINGW}}/bin/g++.exe"
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=OFF
+          -DWHISPER_BUILD_TESTS=OFF
+          -DWHISPER_BUILD_EXAMPLES=OFF
+          -DGGML_OPENMP=ON
+      - cmake --build {{.WHISPER_DIR}}/build -j
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '{{.INSTALL_DIR}}/lib/pkgconfig','{{.INSTALL_DIR}}/include' | Out-Null"
+      - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/include/whisper.h' '{{.INSTALL_DIR}}/include/'"
+      - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/ggml/include/*.h' '{{.INSTALL_DIR}}/include/'"
+      - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/build/src/libwhisper.a','{{.WHISPER_DIR}}/build/ggml/src/libggml.a','{{.WHISPER_DIR}}/build/ggml/src/libggml-base.a','{{.WHISPER_DIR}}/build/ggml/src/libggml-cpu.a' '{{.INSTALL_DIR}}/lib/'"
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File build/write-pkgconfig-windows.ps1 -Prefix "{{.ROOT_DIR}}/{{.INSTALL_DIR}}" -PkgConfigDir "{{.ROOT_DIR}}/{{.INSTALL_DIR}}/lib/pkgconfig"
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType File -Force '{{.INSTALL_DIR}}/{{.MARKER}}' | Out-Null"
+
+  # ── Windows app build ─────────────────────────────────────────────────────
+  build-windows:
+    desc: "Build the Wails Windows exe (bin/yaku-ui.exe)"
+    platforms: [windows]
+    deps: [whisper-windows, wails-cli]
+    dir: "{{.WAILS_DIR}}"
+    cmds:
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '../../{{.OUTPUT_DIR}}' | Out-Null"
+      - wails build -platform windows/amd64
+      - cmd: powershell -NoProfile -Command "Copy-Item 'build/bin/yaku-ui.exe' '../../{{.OUTPUT_DIR}}/yaku-ui.exe'"
+
+  # ── AppImage packaging ────────────────────────────────────────────────────
   appimage:
     desc: "Build an AppImage (GPU={{.GPU}}). Output: bin/yaku-<version>-linux-x86_64.AppImage"
+    platforms: [linux]
     cmds:
       - GPU={{.GPU}} bash build/build-appimage.sh
 
-  # ── Tests ─────────────────────────────────────────────────────────────────────
+  # ── Tests ─────────────────────────────────────────────────────────────────
   test:
-    desc: Run unit tests
+    desc: Run unit tests (Linux/macOS)
+    platforms: [linux, darwin]
     deps: [whisper]
     cmds:
       - go test ./internal/... -timeout 120s {{.CLI_ARGS}}
 
   test-verbose:
-    desc: Run unit tests with verbose output
+    desc: Run unit tests with verbose output (Linux/macOS)
+    platforms: [linux, darwin]
     deps: [whisper]
     cmds:
       - go test ./internal/... -v -timeout 120s {{.CLI_ARGS}}
 
   test-integration:
     desc: "Transcription integration test (set WHISPER_MODEL_REAL=<path>)"
+    platforms: [linux, darwin]
     deps: [whisper]
     cmds:
       - go test ./internal/transcribe/ -v -run TestTranscribe_GermanAudio -timeout 120s
 
-  # ── Maintenance ───────────────────────────────────────────────────────────────
+  test-windows:
+    desc: "Run unit tests on Windows (excludes transcribe — requires whisper-windows first)"
+    platforms: [windows]
+    deps: [whisper-windows]
+    cmds:
+      - go test ./internal/audio/... ./internal/config/... ./internal/translate/... -timeout 120s {{.CLI_ARGS}}
+
+  # ── Maintenance ───────────────────────────────────────────────────────────
   tidy:
     desc: Run go mod tidy
+    platforms: [linux, darwin]
     deps: [whisper]
     cmds:
       - go mod tidy
 
   clean:
     desc: Remove compiled binary
+    platforms: [linux, darwin]
     cmds:
       - rm -f {{.BINARY}}
 
+  clean-windows:
+    desc: Remove compiled Windows binary and whisper libs
+    platforms: [windows]
+    cmds:
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force '{{.OUTPUT_DIR}}/yaku-ui.exe' -ErrorAction SilentlyContinue"
+      - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.WHISPER_DIR}}/build','{{.INSTALL_DIR}}' -ErrorAction SilentlyContinue"
+
   clean-all:
     desc: Remove binary and all compiled whisper libs (forces full rebuild next run)
+    platforms: [linux, darwin]
     cmds:
       - rm -f {{.BINARY}}
       - rm -rf {{.WHISPER_DIR}}/build {{.INSTALL_DIR}}
