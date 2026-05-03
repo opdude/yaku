@@ -41,6 +41,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: yaku.exe
+          path: bin/
 
       - name: Compile whisper.cpp
         run: task whisper
