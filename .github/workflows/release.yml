@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & release
+  release-linux:
+    name: Build & release (Linux AppImage)
     runs-on: ubuntu-24.04
 
     steps:
@@ -48,3 +48,49 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PKG_CONFIG_PATH: ${{ github.workspace }}/build/whisper/install/lib/pkgconfig
+
+  release-windows:
+    name: Build & upload Windows exe
+    runs-on: windows-latest
+    needs: release-linux  # wait for the GitHub Release to be created first
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install MSYS2 MinGW-w64 toolchain and Vulkan packages
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-pkg-config mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers"
+
+      - name: Add MSYS2 MinGW-w64 tools to PATH
+        run: |
+          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "C:\msys64\usr\bin"     | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build whisper.cpp (MinGW, Vulkan)
+        run: go tool task whisper-windows
+        env:
+          CGO_ENABLED: "1"
+          PKG_CONFIG_PATH: ${{ github.workspace }}/build/whisper/install/lib/pkgconfig
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CXX: C:\msys64\mingw64\bin\g++.exe
+
+      - name: Build Wails Windows exe
+        run: go tool task build-windows
+        env:
+          CGO_ENABLED: "1"
+          PKG_CONFIG_PATH: ${{ github.workspace }}/build/whisper/install/lib/pkgconfig
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CXX: C:\msys64\mingw64\bin\g++.exe
+
+      - name: Upload Windows exe to GitHub Release
+        run: gh release upload ${{ github.ref_name }} bin/yaku.exe --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

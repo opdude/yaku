@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Test
+  test-linux:
+    name: Test (Linux)
     runs-on: ubuntu-24.04
 
     steps:
@@ -27,13 +27,48 @@ jobs:
           sudo apt-get install -y \
             cmake glslc libvulkan-dev spirv-headers g++ pkg-config file
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-
       - name: Compile whisper.cpp
-        run: task whisper
+        run: go tool task whisper
 
       - name: Run tests
-        run: task test
+        run: go tool task test
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install MSYS2 MinGW-w64 toolchain and Vulkan packages
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-pkg-config mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers"
+
+      - name: Add MSYS2 MinGW-w64 tools to PATH
+        run: |
+          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "C:\msys64\usr\bin"     | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Compile whisper.cpp (MinGW, Vulkan)
+        run: go tool task whisper-windows
+        env:
+          CGO_ENABLED: "1"
+          PKG_CONFIG_PATH: ${{ github.workspace }}/build/whisper/install/lib/pkgconfig
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CXX: C:\msys64\mingw64\bin\g++.exe
+
+      - name: Run tests
+        run: go tool task test-windows
+        env:
+          CGO_ENABLED: "1"
+          PKG_CONFIG_PATH: ${{ github.workspace }}/build/whisper/install/lib/pkgconfig
+          CC: C:\msys64\mingw64\bin\gcc.exe
+          CXX: C:\msys64\mingw64\bin\g++.exe

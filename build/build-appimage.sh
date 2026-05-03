@@ -19,7 +19,7 @@ echo "==> yaku AppImage builder  (GPU=$GPU, version=$VERSION)"
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "==> Building Wails app..."
 cd "$ROOT"
-GPU="$GPU" task default
+GPU="$GPU" go tool task default
 
 BINARY="$OUTDIR/yaku-ui"
 [ -f "$BINARY" ] || { echo "ERROR: build did not produce $BINARY"; exit 1; }

@@ -46,6 +46,9 @@ func (t *Transcriber) Backend() string { return t.backend }
 // ModelName returns just the filename of the loaded model.
 func (t *Transcriber) ModelName() string { return filepath.Base(t.modelPath) }
 
+// ModelPath returns the full path to the loaded model file.
+func (t *Transcriber) ModelPath() string { return t.modelPath }
+
 // Transcribe converts 16 kHz mono float32 samples to text in the given language.
 // onSegment (may be nil) is called from the whisper decoder thread each time a
 // new segment is ready — use it for partial/live display before the full result.

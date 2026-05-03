@@ -38,11 +38,23 @@ func Stream(ollamaURL, model, text, srcLang, dstLang, prevContext string, onToke
 
 	resp, err := http.Post(ollamaURL, "application/json", bytes.NewBuffer(body)) //nolint:noctx
 	if err != nil {
-		return fmt.Errorf("Ollama unreachable at %s: %w", ollamaURL, err)
+		return fmt.Errorf("Ollama unreachable — is it running? (ollama serve): %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Try to read Ollama's JSON error body for a helpful message.
+		var errBody struct {
+			Error string `json:"error"`
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			_ = json.NewDecoder(resp.Body).Decode(&errBody)
+			msg := errBody.Error
+			if msg == "" {
+				msg = fmt.Sprintf("model %q not found", model)
+			}
+			return fmt.Errorf("Ollama model not found — run: ollama pull %s (%s)", model, msg)
+		}
 		return fmt.Errorf("Ollama returned HTTP %d", resp.StatusCode)
 	}
 

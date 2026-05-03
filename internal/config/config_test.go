@@ -3,9 +3,20 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// setConfigDir redirects os.UserConfigDir() to dir for the duration of the test.
+// On Windows UserConfigDir uses APPDATA; on Linux/macOS it uses XDG_CONFIG_HOME.
+func setConfigDir(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", dir)
+	}
+}
 
 func TestDefault(t *testing.T) {
 	cfg := Default()
@@ -45,7 +56,7 @@ func TestIsComplete_missingOllamaURL(t *testing.T) {
 }
 
 func TestSaveAndLoad_roundtrip(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	setConfigDir(t, t.TempDir())
 
 	orig := Config{
 		ModelPath:    "/models/ggml-large-v3.bin",
@@ -75,7 +86,7 @@ func TestSaveAndLoad_roundtrip(t *testing.T) {
 }
 
 func TestLoad_noFile(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	setConfigDir(t, t.TempDir())
 
 	cfg, exists := Load()
 	if exists {
