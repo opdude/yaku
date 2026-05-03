@@ -322,9 +322,25 @@ func (a *App) runPipeline(ctx context.Context, device string, cfg appconfig.Conf
 		}
 
 		a.emitStatus("transcribing")
+
+		// The whisper segment callback fires from inside a CGO call on a raw C
+		// thread. Calling runtime.EventsEmit (which dispatches to WebView2) from
+		// that thread crashes on Windows because WebView2 requires COM STA context.
+		// Route through a buffered channel so the emit happens on this goroutine.
+		segCh := make(chan string, 32)
+		go func() {
+			for seg := range segCh {
+				runtime.EventsEmit(a.ctx, "translation:segment", map[string]string{"text": seg})
+			}
+		}()
+
 		text, _, err := t.Transcribe(toProcess, cfg.Language, func(seg string) {
-			runtime.EventsEmit(a.ctx, "translation:segment", map[string]string{"text": seg})
+			select {
+			case segCh <- seg:
+			default:
+			}
 		})
+		close(segCh)
 		if err != nil {
 			a.emitError("transcription: " + err.Error())
 			a.emitStatus("listening")

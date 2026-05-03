@@ -40,7 +40,7 @@ prefix=$Prefix
 Name: libwhisper-windows
 Description: Whisper speech recognition library (Windows, GPU=$GPU)
 Version: 1.8.4
-Libs: -L`${prefix}/lib -L`${prefix}/lib64 -lwhisper -l:ggml.a -l:ggml-base.a -l:ggml-cpu.a$gpuLibs -lgomp -lm -lstdc++
+Libs: -L`${prefix}/lib -L`${prefix}/lib64 -lwhisper -l:ggml.a -l:ggml-base.a -l:ggml-cpu.a$gpuLibs -Wl,-Bstatic -lgomp -lstdc++ -lwinpthread -Wl,-Bdynamic -lm -static-libgcc
 "@
 
 New-Item -ItemType Directory -Force $PkgConfigDir | Out-Null
