@@ -30,6 +30,7 @@ vars:
   PKG_CONFIG_PATH:  "{{.ROOT_DIR}}/build/whisper/install/lib/pkgconfig"
   BINARY:           "{{.OUTPUT_DIR}}/yaku-ui"
   WAILS_DIR:        cmd/yaku
+  MINGW:            '{{.MINGW | default "C:/msys64/mingw64"}}'
 
   # Pure Go-template expressions — no shell required on any platform.
   CMAKE_GPU_FLAGS: "{{if eq .GPU \"vulkan\"}}-DGGML_VULKAN=ON{{else if eq .GPU \"cuda\"}}-DGGML_CUDA=ON{{end}}"
@@ -67,8 +68,12 @@ tasks:
     platforms: [windows]
     deps: [whisper-windows, wails-cli]
     dir: "{{.WAILS_DIR}}"
+    env:
+      PATH: '{{.MINGW}}\bin;$PATH'
+      CC:  "{{.MINGW}}/bin/gcc.exe"
+      CXX: "{{.MINGW}}/bin/g++.exe"
     cmds:
-      - wails dev
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File ../../build/wails-windows.ps1 -Cmd dev -Mingw "{{.MINGW}}"
 
   wails-cli:
     desc: "Install the Wails CLI via go install (skipped if already present)"
@@ -151,7 +156,6 @@ tasks:
     platforms: [windows]
     deps: [submodule]
     vars:
-      MINGW: '{{.MINGW | default "C:/msys64/mingw64"}}'
       MARKER: "{{.INSTALL_DIR}}/.built-windows-cpu"
     status:
       - powershell -NoProfile -Command "if (Test-Path '{{.INSTALL_DIR}}/lib/libwhisper.a') { exit 0 } else { exit 1 }"
@@ -182,9 +186,13 @@ tasks:
     platforms: [windows]
     deps: [whisper-windows, wails-cli]
     dir: "{{.WAILS_DIR}}"
+    env:
+      PATH: '{{.MINGW}}\bin;$PATH'
+      CC:  "{{.MINGW}}/bin/gcc.exe"
+      CXX: "{{.MINGW}}/bin/g++.exe"
     cmds:
       - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '../../{{.OUTPUT_DIR}}' | Out-Null"
-      - wails build -platform windows/amd64
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File ../../build/wails-windows.ps1 -Cmd "build -platform windows/amd64" -Mingw "{{.MINGW}}"
       - cmd: powershell -NoProfile -Command "Copy-Item 'build/bin/yaku-ui.exe' '../../{{.OUTPUT_DIR}}/yaku-ui.exe'"
 
   # ── AppImage packaging ────────────────────────────────────────────────────
@@ -220,6 +228,10 @@ tasks:
     desc: "Run unit tests on Windows (excludes transcribe — requires whisper-windows first)"
     platforms: [windows]
     deps: [whisper-windows]
+    env:
+      PATH: '{{.MINGW}}\bin;$PATH'
+      CC:  "{{.MINGW}}/bin/gcc.exe"
+      CXX: "{{.MINGW}}/bin/g++.exe"
     cmds:
       - go test ./internal/audio/... ./internal/config/... ./internal/translate/... -timeout 120s {{.CLI_ARGS}}
 
