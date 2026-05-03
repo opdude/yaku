@@ -158,7 +158,7 @@ Output lands in `./bin/`.
 
 | Command | Description |
 |---|---|
-| `task` | Build `bin/yaku-ui` (Vulkan GPU) |
+| `task` | Build `bin/yaku` (Vulkan GPU) |
 | `task dev` | Wails dev mode with live frontend reload |
 | `GPU=cuda task` | Build with CUDA acceleration |
 | `task appimage` | Build a self-contained AppImage |

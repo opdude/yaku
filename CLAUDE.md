@@ -9,7 +9,7 @@ Real-time audio transcription and translation overlay. Captures system audio (lo
 Use `task` (Taskfile.yml), never `go build` directly — CGO needs `PKG_CONFIG_PATH` set for whisper.cpp, and Wails needs its own build process.
 
 ```
-task              # build binary (bin/yaku-ui)
+task              # build binary (bin/yaku)
 task dev          # Wails dev mode with live-reload frontend
 task test         # run all tests
 task test-verbose # verbose tests

@@ -57,7 +57,7 @@ tasks:
     cmds:
       - mkdir -p ../../{{.OUTPUT_DIR}}
       - wails build -tags webkit2_41 -platform linux/amd64
-      - mv build/bin/yaku-ui ../../{{.BINARY}}
+      - mv build/bin/yaku ../../{{.BINARY}}
 
   dev:
     desc: "Run in Wails dev mode (live-reload frontend)"

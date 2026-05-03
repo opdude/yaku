@@ -21,7 +21,7 @@ echo "==> Building Wails app..."
 cd "$ROOT"
 GPU="$GPU" go tool task default
 
-BINARY="$OUTDIR/yaku-ui"
+BINARY="$OUTDIR/yaku"
 [ -f "$BINARY" ] || { echo "ERROR: build did not produce $BINARY"; exit 1; }
 
 # ── 2. Download linuxdeploy tools ────────────────────────────────────────────

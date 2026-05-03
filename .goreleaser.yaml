@@ -44,7 +44,7 @@ release:
   name_template: "{{ .Tag }}"
   extra_files:
     - glob: "bin/yaku-*-linux-x86_64.AppImage"
-    - glob: "bin/yaku-ui.exe"
+    - glob: "bin/yaku.exe"
   footer: |
     ## Installation
 
@@ -56,7 +56,7 @@ release:
     ```
 
     ### Windows
-    Download `yaku-ui.exe` and run it directly.
+    Download `yaku.exe` and run it directly.
     WebView2 Runtime is required — it is pre-installed on Windows 11 and
     available from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
 
