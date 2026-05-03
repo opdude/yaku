@@ -2,7 +2,7 @@ version: "3"
 
 # ── GPU mode ──────────────────────────────────────────────────────────────────
 # Set GPU=vulkan (default), GPU=cuda, or GPU=cpu to control whisper.cpp backend.
-# Windows builds are always CPU-only for now (GPU support can be added later).
+# Windows builds support vulkan (default) and cpu; cuda can be added later.
 #
 # Build deps (Debian / Ubuntu):
 #   sudo apt-get install cmake glslc libvulkan-dev libgomp-dev g++ pkg-config \
@@ -13,7 +13,11 @@ version: "3"
 #                    gtk3-devel webkit2gtk4.1-devel
 #
 # Build deps (Windows) — requires MSYS2 with MinGW-w64:
-#   pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
+#   pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-ninja \
+#             mingw-w64-x86_64-pkgconf \
+#             mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers \
+#             mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers
+#   (omit the last five lines if using GPU=cpu)
 #
 # Runtime deps (provided by the AppImage except WebKit and GStreamer):
 #   libvulkan.so.1     (vulkan-loader)
@@ -148,36 +152,45 @@ tasks:
         EOF
       - touch {{.MARKER}}
 
-  # ── whisper.cpp (Windows — MinGW-w64, CPU only) ───────────────────────────
+  # ── whisper.cpp (Windows — MinGW-w64) ────────────────────────────────────────
   # Requires MSYS2 MinGW-w64 toolchain.  On GitHub Actions this is pre-installed
   # at C:\msys64\mingw64.  Override MINGW to use a different installation.
+  # GPU=vulkan (default) requires mingw-w64-x86_64-vulkan-loader/headers/shaderc.
   whisper-windows:
-    desc: "Compile whisper.cpp for Windows (CPU+OpenMP) using MinGW-w64"
+    desc: "Compile whisper.cpp for Windows (GPU={{.GPU}}) using MinGW-w64"
     platforms: [windows]
     deps: [submodule]
     vars:
-      MARKER: "{{.INSTALL_DIR}}/.built-windows-cpu"
+      MARKER: "{{.INSTALL_DIR}}/.built-windows-{{.GPU}}"
+      WIN_VULKAN_LIB: "{{if eq .GPU \"vulkan\"}}{{.WHISPER_DIR}}/build/ggml/src/ggml-vulkan/ggml-vulkan.a{{end}}"
     status:
       - powershell -NoProfile -Command "if (Test-Path '{{.INSTALL_DIR}}/lib/libwhisper.a') { exit 0 } else { exit 1 }"
       - powershell -NoProfile -Command "if (Test-Path '{{.INSTALL_DIR}}/lib/pkgconfig/libwhisper.pc') { exit 0 } else { exit 1 }"
       - powershell -NoProfile -Command "if (Test-Path '{{.MARKER}}') { exit 0 } else { exit 1 }"
+      - powershell -NoProfile -Command "if ('{{.WIN_VULKAN_LIB}}' -ne '' -and !(Test-Path '{{.INSTALL_DIR}}/lib/ggml-vulkan.a')) { exit 1 } else { exit 0 }"
     cmds:
+      - cmd: powershell -NoProfile -Command "Remove-Item -Force '{{.INSTALL_DIR}}/.built-windows-*' -ErrorAction SilentlyContinue"
+        ignore_error: true
       - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.WHISPER_DIR}}/build' -ErrorAction SilentlyContinue"
+        ignore_error: true
       - cmake -S {{.WHISPER_DIR}} -B {{.WHISPER_DIR}}/build
           -G Ninja
           "-DCMAKE_C_COMPILER={{.MINGW}}/bin/gcc.exe"
           "-DCMAKE_CXX_COMPILER={{.MINGW}}/bin/g++.exe"
+          "-DCMAKE_PREFIX_PATH={{.MINGW}}"
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_SHARED_LIBS=OFF
           -DWHISPER_BUILD_TESTS=OFF
           -DWHISPER_BUILD_EXAMPLES=OFF
           -DGGML_OPENMP=ON
+          {{.CMAKE_GPU_FLAGS}}
       - cmake --build {{.WHISPER_DIR}}/build -j
       - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '{{.INSTALL_DIR}}/lib/pkgconfig','{{.INSTALL_DIR}}/include' | Out-Null"
       - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/include/whisper.h' '{{.INSTALL_DIR}}/include/'"
       - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/ggml/include/*.h' '{{.INSTALL_DIR}}/include/'"
       - cmd: powershell -NoProfile -Command "Copy-Item '{{.WHISPER_DIR}}/build/src/libwhisper.a','{{.WHISPER_DIR}}/build/ggml/src/ggml.a','{{.WHISPER_DIR}}/build/ggml/src/ggml-base.a','{{.WHISPER_DIR}}/build/ggml/src/ggml-cpu.a' '{{.INSTALL_DIR}}/lib/'"
-      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File build/write-pkgconfig-windows.ps1 -Prefix "{{.ROOT_DIR}}/{{.INSTALL_DIR}}" -PkgConfigDir "{{.ROOT_DIR}}/{{.INSTALL_DIR}}/lib/pkgconfig"
+      - cmd: powershell -NoProfile -Command "if ('{{.WIN_VULKAN_LIB}}' -ne '') { Copy-Item '{{.WIN_VULKAN_LIB}}','{{.MINGW}}/lib/libvulkan-1.dll.a' '{{.INSTALL_DIR}}/lib/' }"
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -File build/write-pkgconfig-windows.ps1 -Prefix "{{.ROOT_DIR}}/{{.INSTALL_DIR}}" -PkgConfigDir "{{.ROOT_DIR}}/{{.INSTALL_DIR}}/lib/pkgconfig" -GPU "{{.GPU}}"
       - cmd: powershell -NoProfile -Command "New-Item -ItemType File -Force '{{.MARKER}}' | Out-Null"
 
   # ── Windows app build ─────────────────────────────────────────────────────

@@ -47,12 +47,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install MSYS2 MinGW-w64 Vulkan packages
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers"
+
       - name: Add MSYS2 MinGW-w64 tools to PATH
         run: |
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo "C:\msys64\usr\bin"     | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Compile whisper.cpp (MinGW, CPU)
+      - name: Compile whisper.cpp (MinGW, Vulkan)
         run: go tool task whisper-windows
         env:
           CGO_ENABLED: "1"
