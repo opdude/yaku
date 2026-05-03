@@ -12,6 +12,7 @@ jobs:
   release-linux:
     name: Build & release (Linux AppImage)
     runs-on: ubuntu-24.04
+    needs: release-windows
 
     steps:
       - uses: actions/checkout@v6
@@ -36,6 +37,11 @@ jobs:
         with:
           version: 3.x
 
+      - name: Download Windows exe artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: yaku.exe
+
       - name: Compile whisper.cpp
         run: task whisper
 
@@ -52,14 +58,13 @@ jobs:
   release-windows:
     name: Build & upload Windows exe
     runs-on: windows-latest
-    needs: release-linux  # wait for the GitHub Release to be created first
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -90,7 +95,8 @@ jobs:
           CC: C:\msys64\mingw64\bin\gcc.exe
           CXX: C:\msys64\mingw64\bin\g++.exe
 
-      - name: Upload Windows exe to GitHub Release
-        run: gh release upload ${{ github.ref_name }} bin/yaku.exe --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows exe to Github
+        uses: actions/upload-artifact@v7
+        with:
+          name: yaku.exe
+          path: bin/yaku.exe
