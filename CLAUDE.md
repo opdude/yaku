@@ -16,7 +16,6 @@ task test-verbose # verbose tests
 task appimage     # build AppImage
 task clean-all    # wipe whisper compiled libs (forces full rebuild)
 GPU=cuda task     # build with CUDA instead of Vulkan
-GPU=cpu task      # build CPU-only (no libvulkan dependency)
 ```
 
 The `whisper` task compiles whisper.cpp from `third_party/whisper.cpp/` via CMake, installs headers + static libs to `build/whisper/install/`, generates pkg-config files, and is skipped when already built. The `wails-cli` task installs the Wails CLI via `go install` and is also skipped when `wails version` succeeds — both `default` and `dev` depend on it so the user never needs to install Wails manually.

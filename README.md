@@ -13,7 +13,7 @@ Audio is captured from the system's default output (loopback), transcribed by [w
 - **Continuous capture** — audio is captured without gaps; transcription and translation run while the next chunk is already being buffered
 - **Streaming transcription** — partial whisper segments appear word-by-word as the model decodes
 - **Streaming translation** — Ollama tokens stream into the overlay in real time
-- **GPU acceleration** — Vulkan (default), CUDA, or CPU-only; the active backend is shown at startup
+- **GPU acceleration** — Vulkan (default) or CUDA; the active backend is shown at startup
 - **Always on top** — stays visible over fullscreen windows
 - **Inline language selector** — change source/target language from the status bar; saved automatically
 
@@ -35,7 +35,7 @@ The overlay displays source text (Japanese) in the top panel, live translation (
 |---|---|
 | [Ollama](https://ollama.com/install) | Local LLM for translation |
 | WebKit2GTK 4.1 | Web renderer (part of GNOME/KDE stack, usually pre-installed) |
-| Vulkan loader | GPU acceleration (skip with a `GPU=cpu` build) |
+| Vulkan loader | GPU acceleration |
 | PipeWire or PulseAudio | System audio capture |
 
 > The AppImage bundles most dependencies. WebKit2GTK and GStreamer must come from the system.
@@ -161,7 +161,6 @@ Output lands in `./bin/`.
 | `task` | Build `bin/yaku-ui` (Vulkan GPU) |
 | `task dev` | Wails dev mode with live frontend reload |
 | `GPU=cuda task` | Build with CUDA acceleration |
-| `GPU=cpu task` | CPU-only build (no Vulkan dependency) |
 | `task appimage` | Build a self-contained AppImage |
 | `task test` | Run unit tests |
 | `task clean` | Remove build output |
@@ -212,4 +211,4 @@ git tag v1.2.3
 git push origin v1.2.3
 ```
 
-The [release workflow](.github/workflows/release.yml) builds Vulkan and CPU AppImages via GoReleaser and uploads them to the GitHub release.
+The [release workflow](.github/workflows/release.yml) builds a Vulkan AppImage via GoReleaser and uploads it to the GitHub release.
