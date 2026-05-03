@@ -47,9 +47,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install MSYS2 MinGW-w64 Vulkan packages
+      - name: Install MSYS2 MinGW-w64 toolchain and Vulkan packages
         run: |
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Sy --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-pkg-config mingw-w64-x86_64-vulkan-loader mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-shaderc mingw-w64-x86_64-spirv-tools mingw-w64-x86_64-spirv-headers"
 
       - name: Add MSYS2 MinGW-w64 tools to PATH
         run: |
