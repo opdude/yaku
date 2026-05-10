@@ -38,7 +38,7 @@ jobs:
           version: 3.x
 
       - name: Download Windows exe artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: yaku.exe
           path: bin/
